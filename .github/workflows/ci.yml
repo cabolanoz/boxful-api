@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+
+jobs:
+  api:
+    name: API checks
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: mongodb://localhost:27017/boxful_test?replicaSet=rs0&directConnection=true
+      DATABASE_URL_TEST: mongodb://localhost:27017/boxful_test?replicaSet=rs0&directConnection=true
+      JWT_SECRET: ci-test-secret
+      JWT_EXPIRES_IN: 1d
+      BCRYPT_SALT_ROUNDS: 12
+      CORS_ORIGIN: http://localhost:3001
+      WEBHOOK_SECRET: ci-webhook-secret
+      THROTTLE_TTL: 60000
+      THROTTLE_LIMIT: 100
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npm run db:generate
+
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Build API
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run e2e tests
+        run: npm run test:e2e
