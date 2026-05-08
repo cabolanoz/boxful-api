@@ -18,7 +18,6 @@ jobs:
     env:
       NODE_ENV: test
       DATABASE_URL: mongodb://localhost:27017/boxful_test?replicaSet=rs0&directConnection=true
-      DATABASE_URL_TEST: mongodb://localhost:27017/boxful_test?replicaSet=rs0&directConnection=true
       JWT_SECRET: ci-test-secret
       JWT_EXPIRES_IN: 1d
       BCRYPT_SALT_ROUNDS: 12
