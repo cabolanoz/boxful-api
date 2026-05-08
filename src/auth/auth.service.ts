@@ -12,6 +12,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthResponse } from './types/auth-response.type';
 import { JwtPayload } from './types/jwt-payload.type';
+import { normalizeEmail } from '../common/utils/normalize-email';
 
 @Injectable()
 export class AuthService {
@@ -38,7 +39,7 @@ export class AuthService {
       throw new BadRequestException('Passwords do NOT match');
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
     const existingUser = await this.usersService.findByEmail(normalizedEmail);
 
     if (existingUser) {
@@ -72,7 +73,7 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<AuthResponse> {
     const { email, password } = loginDto;
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
     const user = await this.usersService.findByEmail(normalizedEmail);
 
     if (!user) {
