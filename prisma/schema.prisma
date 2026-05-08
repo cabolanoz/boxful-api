@@ -19,6 +19,13 @@ enum PaymentMode {
   COD
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY // :shrug:
+}
+
 // Could be Customer as well
 type Recipient {
   fullName String
@@ -47,14 +54,25 @@ type SettlementSnapshot {
 }
 
 model User {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  name         String
-  email        String   @unique
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  firstName   String
+  lastName    String
+  gender      Gender
+  dateOfBirth DateTime
+
+  email        String @unique
   passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+
+  whatsappCountryCode String
+  whatsappNumber      String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   orders Order[]
+
+  @@index([firstName, lastName])
 }
 
 model Order {
