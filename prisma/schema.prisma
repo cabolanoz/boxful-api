@@ -26,31 +26,26 @@ enum Gender {
   PREFER_NOT_TO_SAY // :shrug:
 }
 
-// Could be Customer as well
+// Could be Customer as well, :thinking:
 type Recipient {
-  fullName String
-  phone    String
-  email    String?
-  address  String
-  city     String?
-  notes    String?
+  firstName        String
+  lastName         String
+  email            String?
+  phoneCountryCode String
+  phoneNumber      String
+  address          String
+  department       String
+  municipality     String
+  referencePoint   String?
+  instructions     String?
 }
 
 type PackageItem {
-  description String
-  quantity    Int    @default(1)
-  weightKg    Float?
-  lengthCm    Float?
-  widthCm     Float?
-  heightCm    Float?
-}
-
-type SettlementSnapshot {
-  shippingCostCents    Int
-  codCommissionCents   Int
-  collectedAmountCents Int
-  merchantPayoutCents  Int
-  calculatedAt         DateTime
+  lengthCm     Float
+  heightCm     Float
+  widthCm      Float
+  weightPounds Float
+  content      String
 }
 
 model User {
@@ -82,19 +77,14 @@ model Order {
 
   trackingCode String @unique
 
+  pickupAddress String
+  scheduledDate DateTime
+
   recipient Recipient
   packages  PackageItem[]
 
   status      OrderStatus @default(PENDING)
   paymentMode PaymentMode @default(STANDARD)
-
-  codExpectedAmountCents  Int?
-  codCollectedAmountCents Int?
-
-  settlement SettlementSnapshot?
-
-  deliveredAt DateTime?
-  paidAt      DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -102,13 +92,5 @@ model Order {
   @@index([userId, createdAt])
   @@index([status])
   @@index([paymentMode])
-}
-
-model ShippingRate {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  dayOfWeek     Int      @unique
-  baseCostCents Int
-  currency      String   @default("USD")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  @@index([scheduledDate])
 }

@@ -14,7 +14,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
 
-  app.use(helmet);
+  app.use(helmet());
 
   app.enableCors({
     origin: parseCorsOrigins(process.env.CORS_ORIGIN),
