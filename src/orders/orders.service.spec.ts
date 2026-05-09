@@ -1,16 +1,22 @@
 import { NotFoundException } from '@nestjs/common';
 import { OrderStatus, PaymentMode } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SettlementsService } from '../settlements/settlements.service';
+import { ShippingRatesService } from '../shipping-rates/shipping-rates.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrdersService } from './orders.service';
 
 type PrismaOrderMock = jest.Mocked<
   Pick<PrismaService['order'], 'create' | 'findMany' | 'findFirst'>
 >;
+type ShippingRatesServiceMock = jest.Mocked<
+  Pick<ShippingRatesService, 'getBaseCostForDate'>
+>;
 
 describe('OrdersService', () => {
   let service: OrdersService;
   let orderMock: PrismaOrderMock;
+  let shippingRatesService: ShippingRatesServiceMock;
 
   const userId = '507f1f77bcf86cd799439011';
 
@@ -42,6 +48,7 @@ describe('OrdersService', () => {
 
   const publicOrder = {
     id: '507f1f77bcf86cd799439012',
+    userId,
     trackingCode: 'BOX-ABC12345',
     pickupAddress: 'Pickup address',
     scheduledDate: new Date('2025-07-03T00:00:00.000Z'),
@@ -68,6 +75,13 @@ describe('OrdersService', () => {
     ],
     status: OrderStatus.PENDING,
     paymentMode: PaymentMode.STANDARD,
+    expectedCollectionAmount: null,
+    collectedAmount: null,
+    shippingCost: 4.5,
+    codCommission: 0,
+    settlementAmount: -4.5,
+    deliveredAt: null,
+    paidAt: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
@@ -78,10 +92,17 @@ describe('OrdersService', () => {
       findMany: jest.fn(),
       findFirst: jest.fn(),
     };
+    shippingRatesService = {
+      getBaseCostForDate: jest.fn().mockResolvedValue(4.5),
+    };
 
-    service = new OrdersService({
-      order: orderMock,
-    } as unknown as PrismaService);
+    service = new OrdersService(
+      {
+        order: orderMock,
+      } as unknown as PrismaService,
+      shippingRatesService as unknown as ShippingRatesService,
+      new SettlementsService(),
+    );
   });
 
   it('creates an order with normalized data', async () => {
@@ -103,6 +124,9 @@ describe('OrdersService', () => {
     expect(createArgs.data.userId).toBe(userId);
     expect(createArgs.data.pickupAddress).toBe('Pickup address');
     expect(createArgs.data.paymentMode).toBe(PaymentMode.STANDARD);
+    expect(createArgs.data.shippingCost).toBe(4.5);
+    expect(createArgs.data.codCommission).toBe(0);
+    expect(createArgs.data.settlementAmount).toBe(-4.5);
     expect(createArgs.data.recipient.email).toBe('gabriela@example.com');
     expect(createArgs.data.packages).toMatchObject([
       {
@@ -110,6 +134,36 @@ describe('OrdersService', () => {
       },
     ]);
     expect(createArgs.data.trackingCode).toMatch(/^BOX-/);
+  });
+
+  it('creates a COD order with expected amount and initial negative settlement', async () => {
+    orderMock.create.mockResolvedValue({
+      ...publicOrder,
+      paymentMode: PaymentMode.COD,
+      expectedCollectionAmount: 100,
+    });
+
+    const response = await service.create(userId, {
+      ...createOrderDto,
+      paymentMode: PaymentMode.COD,
+      expectedCollectionAmount: 100,
+    });
+
+    expect(response.paymentMode).toBe(PaymentMode.COD);
+
+    const createCall = orderMock.create.mock.calls[0];
+
+    if (!createCall) {
+      throw new Error('Expected prisma.order.create to be called');
+    }
+
+    const createArgs = createCall[0];
+
+    expect(createArgs.data.paymentMode).toBe(PaymentMode.COD);
+    expect(createArgs.data.expectedCollectionAmount).toBe(100);
+    expect(createArgs.data.shippingCost).toBe(4.5);
+    expect(createArgs.data.codCommission).toBe(0);
+    expect(createArgs.data.settlementAmount).toBe(-4.5);
   });
 
   it('finds orders ordered by creation date descending', async () => {

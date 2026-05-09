@@ -1,8 +1,10 @@
 import { Type } from 'class-transformer';
+import { PaymentMode } from '@prisma/client';
 import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsEnum,
   IsEmail,
   IsNotEmpty,
   IsNumber,
@@ -10,6 +12,7 @@ import {
   IsString,
   Matches,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -88,6 +91,16 @@ export class CreateOrderDto {
 
   @IsDateString()
   scheduledDate!: string;
+
+  @IsOptional()
+  @IsEnum(PaymentMode)
+  paymentMode?: PaymentMode;
+
+  @ValidateIf((order: CreateOrderDto) => order.paymentMode === PaymentMode.COD)
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  expectedCollectionAmount?: number;
 
   @ValidateNested()
   @Type(() => CreateRecipientDto)

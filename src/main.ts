@@ -20,7 +20,7 @@ async function bootstrap() {
     origin: parseCorsOrigins(process.env.CORS_ORIGIN),
     credentials: false,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-webhook-secret'],
   });
 
   app.useGlobalPipes(

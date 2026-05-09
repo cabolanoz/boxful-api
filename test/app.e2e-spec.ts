@@ -31,14 +31,14 @@ function assertHealthResponse(body: unknown): asserts body is HealthResponse {
 }
 
 describe('Health endpoint (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
-    app = moduleFixture.createNestApplication<App>();
+    app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
 
     await app.init();
@@ -49,7 +49,9 @@ describe('Health endpoint (e2e)', () => {
   });
 
   it('/api/health (GET)', () => {
-    return request(app.getHttpServer())
+    const server = app.getHttpServer() as App;
+
+    return request(server)
       .get('/api/health')
       .expect(200)
       .expect((response: Response) => {

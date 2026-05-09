@@ -2,7 +2,7 @@
 
 Backend API for the Boxful Full Stack Engineer technical test.
 
-This project is built with NestJS, TypeScript, Prisma ORM, and MongoDB. The API will provide authentication, order management, searchable order history, and optional settlement logic for cash-on-delivery orders.
+This project is built with NestJS, TypeScript, Prisma ORM, and MongoDB. The API provides authentication, user management, order management, searchable order history, configurable shipping rates, and settlement logic for cash-on-delivery orders.
 
 ## Tech Stack
 
@@ -188,6 +188,20 @@ Apply the Prisma schema to MongoDB:
 npm run db:push
 ```
 
+Seed the shipping rates used when orders are created:
+
+```bash
+npm run db:seed
+```
+
+For a clean local setup, reset the MongoDB database and seed it in one step:
+
+```bash
+npm run db:reset
+```
+
+`db:reset` uses `prisma db push --force-reset`, so it deletes local data in the configured `DATABASE_URL`. It then runs `prisma/seed.ts`, which upserts one active shipping rate for each day of the week.
+
 Start the API in development mode:
 
 ```bash
@@ -273,10 +287,153 @@ npm run db:push
 Pushes the Prisma schema to MongoDB.
 
 ```bash
+npm run db:reset
+```
+
+Resets the configured MongoDB database, applies the Prisma schema, and seeds shipping rates. This is destructive and should only be used for local development or review setup.
+
+```bash
 npm run db:seed
 ```
 
-Runs the database seed script.
+Runs the database seed script. The current seed creates or updates active shipping rates:
+
+```txt
+MONDAY     4.00
+TUESDAY    4.00
+WEDNESDAY  4.50
+THURSDAY   4.50
+FRIDAY     5.00
+SATURDAY   6.00
+SUNDAY     6.00
+```
+
+## Orders, COD, And Settlements
+
+Every order stores the shipping cost that was active on its scheduled date. This keeps historical orders stable if shipping rates change later.
+
+Standard orders use the default payment mode:
+
+```json
+{
+  "pickupAddress": "Masaya",
+  "scheduledDate": "2026-05-11",
+  "recipient": {
+    "firstName": "Rebeca",
+    "lastName": "Montenegro",
+    "email": "rebeca@boxful.com",
+    "phoneCountryCode": "505",
+    "phoneNumber": "55555555",
+    "address": "Masaya",
+    "department": "Masaya",
+    "municipality": "Masaya",
+    "referencePoint": "Casa color verde",
+    "instructions": "Cuidado con el perro"
+  },
+  "packages": [
+    {
+      "lengthCm": 15,
+      "heightCm": 15,
+      "widthCm": 15,
+      "weightPounds": 3,
+      "content": "iPhone 14 Pro Max"
+    }
+  ]
+}
+```
+
+For standard orders:
+
+```txt
+settlementAmount = -shippingCost
+codCommission = 0
+```
+
+COD orders require `paymentMode: "COD"` and `expectedCollectionAmount`:
+
+```json
+{
+  "pickupAddress": "Masaya",
+  "scheduledDate": "2026-05-11",
+  "paymentMode": "COD",
+  "expectedCollectionAmount": 100,
+  "recipient": {
+    "firstName": "Rebeca",
+    "lastName": "Montenegro",
+    "email": "rebeca@boxful.com",
+    "phoneCountryCode": "505",
+    "phoneNumber": "55555555",
+    "address": "Masaya",
+    "department": "Masaya",
+    "municipality": "Masaya"
+  },
+  "packages": [
+    {
+      "lengthCm": 15,
+      "heightCm": 15,
+      "widthCm": 15,
+      "weightPounds": 3,
+      "content": "Phone"
+    }
+  ]
+}
+```
+
+Before delivery, COD orders keep `collectedAmount` empty and start with:
+
+```txt
+settlementAmount = -shippingCost
+codCommission = 0
+```
+
+When the real collected amount arrives, the API recalculates with:
+
+```txt
+codCommission = min(collectedAmount * 0.0001, 25)
+settlementAmount = collectedAmount - shippingCost - codCommission
+```
+
+The real `collectedAmount` is used for final settlement, not the initial expected amount.
+
+## Delivery Webhook
+
+The delivery webhook updates an order by tracking code and recalculates COD settlement when a real collected amount is provided.
+
+Endpoint:
+
+```txt
+POST /api/webhooks/orders/delivery
+```
+
+Required header:
+
+```txt
+x-webhook-secret: value-from-WEBHOOK_SECRET
+```
+
+Example:
+
+```bash
+curl -X POST http://localhost:3000/api/webhooks/orders/delivery \
+  -H "Content-Type: application/json" \
+  -H "x-webhook-secret: CHANGE-ME" \
+  -d '{
+    "trackingCode": "BOX-12345678",
+    "status": "DELIVERED",
+    "collectedAmount": 15
+  }'
+```
+
+The webhook:
+
+- validates `x-webhook-secret` against `WEBHOOK_SECRET`
+- returns `401` when the secret is invalid
+- returns `404` when the tracking code does not exist
+- updates order status
+- stores `collectedAmount` when present
+- sets `deliveredAt` for delivered orders
+- sets `paidAt` for COD orders with a collected amount
+- recalculates `codCommission` and `settlementAmount`
 
 ## Project Structure
 
@@ -286,12 +443,17 @@ Current structure:
 boxful-api/
   prisma/
     schema.prisma
+    seed.ts
 
   src/
-    app.controller.ts
-    app.module.ts
-    app.service.ts
-    main.ts
+    auth/
+    common/
+    orders/
+    prisma/
+    settlements/
+    shipping-rates/
+    users/
+    webhooks/
 
   test/
     app.e2e-spec.ts
@@ -304,21 +466,6 @@ boxful-api/
   nest-cli.json
   package.json
   tsconfig.json
-```
-
-Planned structure:
-
-```txt
-src/
-  auth/
-  users/
-  orders/
-  prisma/
-  common/
-  config/
-  shipping-rates/
-  settlements/
-  webhooks/
 ```
 
 ## Technical Notes
@@ -346,9 +493,9 @@ Docker support was explored during the initial setup, but the current local deve
 
 Docker can be revisited once the core API functionality is complete.
 
-## Development Plan
+## Implemented Scope
 
-Initial API scope:
+Current API scope:
 
 - Health endpoint
 - Prisma setup
@@ -356,7 +503,6 @@ Initial API scope:
 - Users module
 - Orders module
 - Searchable order history
-- CSV export support
 - Shipping rate configuration
 - COD settlement calculation
 - Webhook endpoint for delivery/payment updates

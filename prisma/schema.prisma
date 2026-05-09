@@ -19,6 +19,16 @@ enum PaymentMode {
   COD
 }
 
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -83,6 +93,14 @@ model Order {
   recipient Recipient
   packages  PackageItem[]
 
+  expectedCollectionAmount Float?
+  collectedAmount          Float?
+  shippingCost             Float
+  codCommission            Float?
+  settlementAmount         Float
+  deliveredAt              DateTime?
+  paidAt                   DateTime?
+
   status      OrderStatus @default(PENDING)
   paymentMode PaymentMode @default(STANDARD)
 
@@ -93,4 +111,15 @@ model Order {
   @@index([status])
   @@index([paymentMode])
   @@index([scheduledDate])
+}
+
+model ShippingRate {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  dayOfWeek DayOfWeek @unique
+  baseCost  Float
+  active    Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

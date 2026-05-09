@@ -1,17 +1,30 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PaymentMode, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SettlementsService } from '../settlements/settlements.service';
+import { ShippingRatesService } from '../shipping-rates/shipping-rates.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { FindOrdersQueryDto } from './dto/find-orders-query.dto';
 import { generateTrackingCode } from './utils/generate-tracking-code';
 
-const publicOrderSelect = {
+export const publicOrderSelect = {
   id: true,
   trackingCode: true,
   pickupAddress: true,
   scheduledDate: true,
   recipient: true,
   packages: true,
+  expectedCollectionAmount: true,
+  collectedAmount: true,
+  shippingCost: true,
+  codCommission: true,
+  settlementAmount: true,
+  deliveredAt: true,
+  paidAt: true,
   status: true,
   paymentMode: true,
   createdAt: true,
@@ -24,16 +37,49 @@ export type PublicOrder = Prisma.OrderGetPayload<{
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly shippingRatesService: ShippingRatesService,
+    private readonly settlementsService: SettlementsService,
+  ) {}
 
-  create(userId: string, createOrderDto: CreateOrderDto): Promise<PublicOrder> {
+  async create(
+    userId: string,
+    createOrderDto: CreateOrderDto,
+  ): Promise<PublicOrder> {
+    const scheduledDate = new Date(createOrderDto.scheduledDate);
+    const paymentMode = createOrderDto.paymentMode ?? PaymentMode.STANDARD;
+
+    if (
+      paymentMode === PaymentMode.COD &&
+      createOrderDto.expectedCollectionAmount == null
+    ) {
+      throw new BadRequestException(
+        'Expected collection amount is required for COD orders',
+      );
+    }
+
+    const shippingCost =
+      await this.shippingRatesService.getBaseCostForDate(scheduledDate);
+    const settlement = this.settlementsService.calculateOrderSettlement({
+      paymentMode,
+      shippingCost,
+    });
+
     return this.prisma.order.create({
       data: {
         userId,
         trackingCode: generateTrackingCode(),
         pickupAddress: createOrderDto.pickupAddress.trim(),
-        scheduledDate: new Date(createOrderDto.scheduledDate),
-        paymentMode: PaymentMode.STANDARD,
+        scheduledDate,
+        paymentMode,
+        expectedCollectionAmount:
+          paymentMode === PaymentMode.COD
+            ? createOrderDto.expectedCollectionAmount
+            : undefined,
+        shippingCost,
+        codCommission: settlement.codCommission,
+        settlementAmount: settlement.settlementAmount,
         recipient: {
           firstName: createOrderDto.recipient.firstName.trim(),
           lastName: createOrderDto.recipient.lastName.trim(),
