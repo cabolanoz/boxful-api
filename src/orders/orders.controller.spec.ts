@@ -5,7 +5,7 @@ import { OrdersController } from './orders.controller';
 import { OrdersService, PublicOrder } from './orders.service';
 
 type OrdersServiceMock = jest.Mocked<
-  Pick<OrdersService, 'create' | 'findAll' | 'findOne'>
+  Pick<OrdersService, 'create' | 'findAll' | 'findOne' | 'updateStatus'>
 >;
 
 describe('OrdersController', () => {
@@ -87,6 +87,7 @@ describe('OrdersController', () => {
       create: jest.fn(),
       findAll: jest.fn(),
       findOne: jest.fn(),
+      updateStatus: jest.fn(),
     };
 
     controller = new OrdersController(
@@ -120,5 +121,27 @@ describe('OrdersController', () => {
     );
 
     expect(ordersService.findOne).toHaveBeenCalledWith(user.id, publicOrder.id);
+  });
+
+  it('updates an order status for the current user', async () => {
+    const updatedOrder: PublicOrder = {
+      ...publicOrder,
+      status: OrderStatus.IN_TRANSIT,
+    };
+    const updateStatusDto = {
+      status: OrderStatus.IN_TRANSIT,
+    };
+
+    ordersService.updateStatus.mockResolvedValue(updatedOrder);
+
+    await expect(
+      controller.updateStatus(user, publicOrder.id, updateStatusDto),
+    ).resolves.toEqual(updatedOrder);
+
+    expect(ordersService.updateStatus).toHaveBeenCalledWith(
+      user.id,
+      publicOrder.id,
+      updateStatusDto,
+    );
   });
 });

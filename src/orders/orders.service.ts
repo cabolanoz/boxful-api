@@ -3,12 +3,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PaymentMode, Prisma } from '@prisma/client';
+import { OrderStatus, PaymentMode, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettlementsService } from '../settlements/settlements.service';
 import { ShippingRatesService } from '../shipping-rates/shipping-rates.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { FindOrdersQueryDto } from './dto/find-orders-query.dto';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { generateTrackingCode } from './utils/generate-tracking-code';
 
 export const publicOrderSelect = {
@@ -33,6 +34,19 @@ export const publicOrderSelect = {
 
 export type PublicOrder = Prisma.OrderGetPayload<{
   select: typeof publicOrderSelect;
+}>;
+
+const orderStatusUpdateSelect = {
+  id: true,
+  paymentMode: true,
+  collectedAmount: true,
+  shippingCost: true,
+  deliveredAt: true,
+  paidAt: true,
+} satisfies Prisma.OrderSelect;
+
+type OrderStatusUpdateData = Prisma.OrderGetPayload<{
+  select: typeof orderStatusUpdateSelect;
 }>;
 
 @Injectable()
@@ -151,6 +165,72 @@ export class OrdersService {
     }
 
     return order;
+  }
+
+  async updateStatus(
+    userId: string,
+    orderId: string,
+    updateOrderStatusDto: UpdateOrderStatusDto,
+  ): Promise<PublicOrder> {
+    if (!this.isValidMongoObjectId(orderId)) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const order: OrderStatusUpdateData | null =
+      await this.prisma.order.findFirst({
+        where: {
+          id: orderId,
+          userId,
+        },
+        select: orderStatusUpdateSelect,
+      });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const collectedAmount = this.getStatusCollectedAmount(
+      updateOrderStatusDto,
+      order,
+    );
+    const settlement = this.settlementsService.calculateOrderSettlement({
+      paymentMode: order.paymentMode,
+      shippingCost: order.shippingCost,
+      collectedAmount:
+        order.paymentMode === PaymentMode.COD ? collectedAmount : null,
+    });
+    const now = new Date();
+
+    return this.prisma.order.update({
+      where: {
+        id: order.id,
+      },
+      data: {
+        status: updateOrderStatusDto.status,
+        collectedAmount:
+          updateOrderStatusDto.collectedAmount == null
+            ? undefined
+            : updateOrderStatusDto.collectedAmount,
+        codCommission: settlement.codCommission,
+        settlementAmount: settlement.settlementAmount,
+        deliveredAt:
+          updateOrderStatusDto.status === OrderStatus.DELIVERED
+            ? (order.deliveredAt ?? now)
+            : order.deliveredAt,
+        paidAt:
+          order.paymentMode === PaymentMode.COD && collectedAmount != null
+            ? (order.paidAt ?? now)
+            : order.paidAt,
+      },
+      select: publicOrderSelect,
+    });
+  }
+
+  private getStatusCollectedAmount(
+    updateOrderStatusDto: UpdateOrderStatusDto,
+    order: OrderStatusUpdateData,
+  ): number | null {
+    return updateOrderStatusDto.collectedAmount ?? order.collectedAmount;
   }
 
   private isValidMongoObjectId(value: string): boolean {

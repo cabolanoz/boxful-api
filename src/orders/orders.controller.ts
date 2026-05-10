@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -12,6 +13,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { PublicUser } from '../users/users.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { FindOrdersQueryDto } from './dto/find-orders-query.dto';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { OrdersService, PublicOrder } from './orders.service';
 
 @UseGuards(JwtAuthGuard)
@@ -41,5 +43,18 @@ export class OrdersController {
     @Param('id') orderId: string,
   ): Promise<PublicOrder> {
     return this.ordersService.findOne(user.id, orderId);
+  }
+
+  @Patch(':id/status')
+  updateStatus(
+    @CurrentUser() user: PublicUser,
+    @Param('id') orderId: string,
+    @Body() updateOrderStatusDto: UpdateOrderStatusDto,
+  ): Promise<PublicOrder> {
+    return this.ordersService.updateStatus(
+      user.id,
+      orderId,
+      updateOrderStatusDto,
+    );
   }
 }

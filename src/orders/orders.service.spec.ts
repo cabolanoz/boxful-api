@@ -7,7 +7,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { OrdersService } from './orders.service';
 
 type PrismaOrderMock = jest.Mocked<
-  Pick<PrismaService['order'], 'create' | 'findMany' | 'findFirst'>
+  Pick<PrismaService['order'], 'create' | 'findMany' | 'findFirst' | 'update'>
 >;
 type ShippingRatesServiceMock = jest.Mocked<
   Pick<ShippingRatesService, 'getBaseCostForDate'>
@@ -91,6 +91,7 @@ describe('OrdersService', () => {
       create: jest.fn(),
       findMany: jest.fn(),
       findFirst: jest.fn(),
+      update: jest.fn(),
     };
     shippingRatesService = {
       getBaseCostForDate: jest.fn().mockResolvedValue(4.5),
@@ -203,6 +204,79 @@ describe('OrdersService', () => {
         },
       }),
     );
+  });
+
+  it('updates an order status for the current user', async () => {
+    orderMock.findFirst.mockResolvedValue(publicOrder);
+    orderMock.update.mockResolvedValue({
+      ...publicOrder,
+      status: OrderStatus.IN_TRANSIT,
+    });
+
+    const response = await service.updateStatus(userId, publicOrder.id, {
+      status: OrderStatus.IN_TRANSIT,
+    });
+
+    expect(response.status).toBe(OrderStatus.IN_TRANSIT);
+    expect(orderMock.update).toHaveBeenCalledTimes(1);
+
+    const updateCall = orderMock.update.mock.calls[0];
+
+    if (!updateCall) {
+      throw new Error('Expected prisma.order.update to be called');
+    }
+
+    const updateArgs = updateCall[0];
+
+    expect(updateArgs.where).toEqual({
+      id: publicOrder.id,
+    });
+    expect(updateArgs.data).toMatchObject({
+      status: OrderStatus.IN_TRANSIT,
+      codCommission: 0,
+      settlementAmount: -4.5,
+    });
+  });
+
+  it('updates a COD order status and recalculates settlement with collected amount', async () => {
+    const codOrder = {
+      ...publicOrder,
+      paymentMode: PaymentMode.COD,
+      expectedCollectionAmount: 100,
+      shippingCost: 6,
+    };
+
+    orderMock.findFirst.mockResolvedValue(codOrder);
+    orderMock.update.mockResolvedValue({
+      ...codOrder,
+      status: OrderStatus.DELIVERED,
+      collectedAmount: 115,
+      codCommission: 0.0115,
+      settlementAmount: 108.9885,
+    });
+
+    const response = await service.updateStatus(userId, codOrder.id, {
+      status: OrderStatus.DELIVERED,
+      collectedAmount: 115,
+    });
+
+    expect(response.status).toBe(OrderStatus.DELIVERED);
+    expect(orderMock.update).toHaveBeenCalledTimes(1);
+
+    const updateCall = orderMock.update.mock.calls[0];
+
+    if (!updateCall) {
+      throw new Error('Expected prisma.order.update to be called');
+    }
+
+    const updateArgs = updateCall[0];
+
+    expect(updateArgs.data).toMatchObject({
+      status: OrderStatus.DELIVERED,
+      collectedAmount: 115,
+      codCommission: 0.0115,
+      settlementAmount: 108.9885,
+    });
   });
 
   it('throws NotFoundException when order id is invalid', async () => {
