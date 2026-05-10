@@ -1,5 +1,17 @@
 # Orders And Settlements
 
+Production API base URL:
+
+```txt
+https://boxful-api.onrender.com/api
+```
+
+Local API base URL:
+
+```txt
+http://localhost:3000/api
+```
+
 ## Shipping Rates
 
 Orders store the shipping cost that was active on their scheduled date. This keeps historical orders stable when rates change later.
@@ -144,7 +156,22 @@ Required header:
 x-webhook-secret: value-from-WEBHOOK_SECRET
 ```
 
+The production webhook secret is not stored in the repository. It should be shared with reviewers through a private channel, such as email.
+
 Example:
+
+```bash
+curl -X POST https://boxful-api.onrender.com/api/webhooks/orders/delivery \
+  -H "Content-Type: application/json" \
+  -H "x-webhook-secret: <WEBHOOK_SECRET_SENT_BY_EMAIL>" \
+  -d '{
+    "trackingCode": "BOX-12345678",
+    "status": "DELIVERED",
+    "collectedAmount": 115
+  }'
+```
+
+For local development, use the local base URL and the `WEBHOOK_SECRET` value from your `.env` file:
 
 ```bash
 curl -X POST http://localhost:3000/api/webhooks/orders/delivery \
@@ -165,4 +192,3 @@ The webhook:
 - sets `deliveredAt` for delivered orders
 - sets `paidAt` for COD orders with a collected amount
 - recalculates `codCommission` and `settlementAmount`
-

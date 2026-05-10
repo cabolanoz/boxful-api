@@ -8,6 +8,12 @@ The frontend is deployed at:
 https://boxful-web.vercel.app/
 ```
 
+The backend API is deployed at:
+
+```txt
+https://boxful-api.onrender.com/api
+```
+
 ## MongoDB Atlas
 
 Use a MongoDB Atlas connection string in production:
@@ -27,7 +33,17 @@ DATABASE_URL="mongodb+srv://..." npm run db:seed
 
 Avoid `db:reset` in production-like databases unless you intentionally want to delete all data.
 
-## Railway Backend
+## Backend Hosting
+
+The current production backend is hosted on Render:
+
+```txt
+https://boxful-api.onrender.com/api
+```
+
+The notes below also apply to Railway or any Node.js host that supports environment variables and a start command.
+
+## Railway Or Render Backend
 
 Suggested build command:
 
@@ -55,5 +71,6 @@ THROTTLE_TTL=60000
 THROTTLE_LIMIT=100
 ```
 
-Railway provides `PORT`, so it does not need to be set manually.
+Do not commit production secrets. Share `WEBHOOK_SECRET` with reviewers through a private channel, such as email.
 
+Railway and Render provide `PORT`, so it does not need to be set manually.

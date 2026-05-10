@@ -10,6 +10,12 @@ Frontend:
 https://boxful-web.vercel.app/
 ```
 
+Production API:
+
+```txt
+https://boxful-api.onrender.com/api
+```
+
 ## Requirements
 
 - Node.js 24.15.0
@@ -63,10 +69,22 @@ The API runs at:
 http://localhost:3000/api
 ```
 
+The deployed API runs at:
+
+```txt
+https://boxful-api.onrender.com/api
+```
+
 Health check:
 
 ```bash
 curl http://localhost:3000/api/health
+```
+
+Production health check:
+
+```bash
+curl https://boxful-api.onrender.com/api/health
 ```
 
 ## Environment Variables
@@ -81,6 +99,8 @@ JWT_SECRET="CHANGE-ME"
 WEBHOOK_SECRET="CHANGE-ME"
 CORS_ORIGIN="http://localhost:3001"
 ```
+
+Production secrets are not committed to the repository. The webhook secret should be shared with reviewers through a private channel, such as email.
 
 ## Database Seed
 
@@ -117,4 +137,3 @@ npm run db:seed
 - Local MongoDB setup: [documents/LOCAL_DEVELOPMENT.md](documents/LOCAL_DEVELOPMENT.md)
 - Orders, COD, settlements, and webhooks: [documents/ORDERS_AND_SETTLEMENTS.md](documents/ORDERS_AND_SETTLEMENTS.md)
 - Deployment notes: [documents/DEPLOYMENT.md](documents/DEPLOYMENT.md)
-
